@@ -52,7 +52,7 @@ export class STTApiClass {
 	public allcrew!: any[];
 
 	// TODO: make this configurable, if someone wants to host the web app themselves
-	public serverAddress: string = 'https://iampicard.com/';
+	public serverAddress: string = 'https://127.0.0.1:9222/';
 
 	constructor() {
 		this.refreshEverything(true);
