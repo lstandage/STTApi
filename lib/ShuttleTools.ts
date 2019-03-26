@@ -2,6 +2,7 @@ import STTApi from "./index";
 
 export async function shuttleComplete(id: number): Promise<any> {
     let data = await STTApi.executePostRequest("shuttle/complete", { id });
+    return await STTApi.applyUpdates(data);
 
     /*
 action:update
@@ -31,6 +32,7 @@ shuttle_results
 
 export async function shuttleRedeemToken(token_id: number): Promise<any> {
     let data = await STTApi.executePostRequest("shuttle/redeem_token", { id: token_id });
+    return await STTApi.applyUpdates(data);
 
     /*
 action:update
@@ -53,4 +55,5 @@ export async function shuttleStart(id: number, crew_ids: number[], consumable_id
             displayed_percent_success: `${displayed_percent_success}%`
         });
 
+    return await STTApi.applyUpdates(data);
 }

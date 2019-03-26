@@ -1,17 +1,19 @@
-import STTApi from "./index";
-import CONFIG from "./CONFIG";
+import STTApi from './index';
+import CONFIG from './CONFIG';
 
 export async function loadGauntlet(): Promise<any> {
-	let data = await STTApi.executeGetRequest("gauntlet/status", { gauntlet_id: -1 });
-	if (data.character && data.character.gauntlets) {
-		return data.character.gauntlets[0];
-	} else {
-		throw new Error("Invalid data for gauntlet!");
-	}
+	let data = await STTApi.executeGetRequest('gauntlet/status', { gauntlet_id: -1 });
+
+	// Clear out old data
+	STTApi.playerData.character.gauntlets = [];
+
+	await STTApi.applyUpdates(data);
+
+	return STTApi.playerData.character.gauntlets[0];
 }
 
 export async function claimRankRewards(gauntlet_id: number): Promise<any> {
-	let data = await STTApi.executeGetRequest("gauntlet/claim_rank_rewards", { gauntlet_id: gauntlet_id });
+	let data = await STTApi.executeGetRequest('gauntlet/claim_rank_rewards', { gauntlet_id: gauntlet_id });
 	let results = { description: undefined, rewards: undefined };
 	data.forEach((item: any) => {
 		if (item.description) {
@@ -25,82 +27,83 @@ export async function claimRankRewards(gauntlet_id: number): Promise<any> {
 }
 
 export async function payToGetNewOpponents(gauntlet_id: number): Promise<any> {
-	let data = await STTApi.executePostRequest("gauntlet/refresh_opp_pool_and_revive_crew", { gauntlet_id: gauntlet_id, pay: true });
-	let currentGauntlet = null;
-	let merits = null;
-	if (!data.message) {
-		data.forEach((item: any) => {
-			if (item.character && item.character.gauntlets) {
-				currentGauntlet = item.character.gauntlets[0];
-			} else if (item.player && item.player.premium_earnable) {
-				// TODO: this should update the global state in STTApi (in fact, these kind of updates can come in at any time and could be handled in the request api itself)
-				merits = item.player.premium_earnable;
-			}
-		});
-	}
+	let data = await STTApi.executePostRequest('gauntlet/refresh_opp_pool_and_revive_crew', { gauntlet_id: gauntlet_id, pay: true });
 
-	if (currentGauntlet) {
-		return { gauntlet: currentGauntlet, merits: merits };
-	} else if (data.message) {
-		return { message: data.message };
+	// Clear out old data
+	STTApi.playerData.character.gauntlets = [];
+
+	let newData = await STTApi.applyUpdates(data);
+
+	if (newData.length > 0 && newData[0].message) {
+		return { message: newData[0].message };
 	} else {
-		throw new Error("Invalid data for gauntlet!");
+		return { gauntlet: STTApi.playerData.character.gauntlets[0] };
 	}
 }
 
 // Save is false if the crew is not disabled yet; true if the crew is disabled already
 export async function payToReviveCrew(gauntlet_id: number, crew_id: number, save: boolean): Promise<any> {
-	let data = await STTApi.executePostRequest("gauntlet/revive_after_crew_contest_loss", { gauntlet_id: gauntlet_id, save: save, crew_id: crew_id });
-	let currentGauntlet = null;
-	if (data.message) {
-		// TODO: error checking
-	}
-	data.forEach((item: any) => {
-		if (item.character && item.character.gauntlets) {
-			currentGauntlet = item.character.gauntlets[0];
-		} else if (item.player && item.player.premium_purchasable) {
-			// TODO: this should update the global state in STTApi (in fact, these kind of updates can come in at any time and could be handled in the request api itself)
-		}
+	let data = await STTApi.executePostRequest('gauntlet/revive_after_crew_contest_loss', {
+		gauntlet_id: gauntlet_id,
+		save: save,
+		crew_id: crew_id
 	});
 
-	if (currentGauntlet) {
-		return { gauntlet: currentGauntlet };
-	} else {
-		throw new Error("Invalid data for gauntlet!");
-	}
+	// Clear out old data
+	STTApi.playerData.character.gauntlets = [];
+
+	await STTApi.applyUpdates(data);
+
+	return { gauntlet: STTApi.playerData.character.gauntlets[0] };
 }
 
-export async function playContest(gauntlet_id: number, crew_id: number, opponent_id: number, op_crew_id: number): Promise<any> {
-	let data = await STTApi.executePostRequest("gauntlet/execute_crew_contest", {
+export async function playContest(
+	gauntlet_id: number,
+	crew_id: number,
+	opponent_id: number,
+	op_crew_id: number,
+	match: IMatch,
+	consecutive_wins: number
+): Promise<any> {
+	let postData: any = {
 		gauntlet_id: gauntlet_id,
 		crew_id: crew_id,
 		opponent_id: opponent_id,
 		op_crew_id: op_crew_id,
 		boost: false
-	});
-	let currentGauntlet = null;
+	};
+
+	if (STTApi.inWebMode) {
+		postData.match = match;
+		postData.consecutive_wins = consecutive_wins;
+	}
+
+	let data = await STTApi.executePostRequest('gauntlet/execute_crew_contest', postData);
+
+	// Clear out old data
+	STTApi.playerData.character.gauntlets = [];
+
+	let newData = await STTApi.applyUpdates(data);
+
 	let contest = null;
 	let rewards = null;
-	data.forEach((item: any) => {
-		if (item.character && item.character.gauntlets) {
-			currentGauntlet = item.character.gauntlets[0];
-		} else if (item.contest) {
+	newData.forEach((item: any) => {
+		if (item.contest) {
 			contest = item.contest;
 		} else if (item.rewards) {
 			rewards = item.rewards;
 		}
-
 	});
 
-	if (currentGauntlet && contest) {
-		return { gauntlet: currentGauntlet, lastResult: contest, rewards: rewards };
+	if (contest) {
+		return { gauntlet: STTApi.playerData.character.gauntlets[0], lastResult: contest, rewards: rewards };
 	} else {
-		throw new Error("Invalid data for gauntlet!");
+		throw new Error('Invalid data for gauntlet!');
 	}
 }
 
 export async function enterGauntlet(gauntletId: number, crewIds: Array<number>): Promise<void> {
-	let data = await STTApi.executePostRequest("gauntlet/enter_crew_contest_gauntlet", {
+	let data = await STTApi.executePostRequest('gauntlet/enter_crew_contest_gauntlet', {
 		gauntlet_id: gauntletId,
 		crew1_id: crewIds[0],
 		crew2_id: crewIds[1],
@@ -109,11 +112,12 @@ export async function enterGauntlet(gauntletId: number, crewIds: Array<number>):
 		crew5_id: crewIds[4]
 	});
 
-	if (data && data.character && data.character.gauntlets) {
-		return data.character.gauntlets[0];
-	} else {
-		throw new Error("Invalid data for gauntlet!");
-	}
+	// Clear out old data
+	STTApi.playerData.character.gauntlets = [];
+
+	await STTApi.applyUpdates(data);
+
+	return STTApi.playerData.character.gauntlets[0];
 }
 
 export interface ICrewOdd {
@@ -130,6 +134,7 @@ export interface IOpponentOdd {
 	name: string;
 	level: number;
 	value: number;
+	rank: number;
 	player_id: number;
 	crew_id: number;
 	archetype_symbol: string;
@@ -195,6 +200,7 @@ export function gauntletRoundOdds(currentGauntlet: any, simulatedRounds: number)
 			name: opponent.name,
 			level: opponent.level,
 			value: opponent.value,
+			rank: opponent.rank,
 			player_id: opponent.player_id,
 			crew_id: opponent.crew_contest_data.crew[0].crew_id,
 			archetype_symbol: opponent.crew_contest_data.crew[0].archetype_symbol,
@@ -218,28 +224,28 @@ export function gauntletRoundOdds(currentGauntlet: any, simulatedRounds: number)
 	});
 
 	const roll = (data: any, skillIndex: number): number => {
-		let max = (Math.random() < 0.5) ? 0 : 1;
-		let min = (Math.random() < 0.5) ? 0 : 1;
+		let max = Math.random() < 0.5 ? 0 : 1;
+		let min = Math.random() < 0.5 ? 0 : 1;
 		if (data.min[skillIndex] > 0) {
 			max = data.max[skillIndex];
 			min = data.min[skillIndex];
 		}
 
-		return (Math.floor((Math.random() * (max - min)) + min) * (Math.random() < (data.crit_chance / 100) ? 2 : 1));
-	}
+		return Math.floor(Math.random() * (max - min) + min) * (Math.random() < data.crit_chance / 100 ? 2 : 1);
+	};
 
 	result.matches = [];
 
 	result.crewOdds.forEach((crewOdd: any) => {
 		result.opponents.forEach((opponent: any) => {
-			if ((crewOdd.max[0] + crewOdd.max[1]) * 2 < (opponent.min[0] + opponent.min[1])) {
+			if ((crewOdd.max[0] + crewOdd.max[1]) * 2 < opponent.min[0] + opponent.min[1]) {
 				// If there is 0 chance of winning, bail early and don't waste time
 				result.matches.push({
 					crewOdd: crewOdd,
 					opponent: opponent,
 					chance: 0
 				});
-			} else if ((opponent.max[0] + opponent.max[1]) * 2 < (crewOdd.min[0] + crewOdd.min[1])) {
+			} else if ((opponent.max[0] + opponent.max[1]) * 2 < crewOdd.min[0] + crewOdd.min[1]) {
 				// If there is 100 chance of winning, bail early and don't waste time
 				result.matches.push({
 					crewOdd: crewOdd,
@@ -264,8 +270,7 @@ export function gauntletRoundOdds(currentGauntlet: any, simulatedRounds: number)
 					totalOpponent += roll(opponent, 1);
 					totalOpponent += roll(opponent, 1);
 
-					if (totalCrew > totalOpponent)
-						wins++;
+					if (totalCrew > totalOpponent) wins++;
 				}
 
 				result.matches.push({
@@ -304,11 +309,18 @@ export interface IGauntletCrewSelection {
 	recommendations: Array<number>;
 }
 
-export function gauntletCrewSelection(currentGauntlet: any, roster: any, featuredSkillBonus: number, critBonusDivider: number, preSortCount: number, includeFrozen: boolean): any {
+export function gauntletCrewSelection(
+	currentGauntlet: any,
+	roster: any,
+	featuredSkillBonus: number,
+	critBonusDivider: number,
+	preSortCount: number,
+	includeFrozen: boolean
+): any {
 	let gauntletCrew: any[] = [];
 
 	roster.forEach((crew: any) => {
-		if ((crew.frozen > 0) && !includeFrozen) {
+		if (crew.frozen > 0 && !includeFrozen) {
 			return;
 		}
 
@@ -323,15 +335,15 @@ export function gauntletCrewSelection(currentGauntlet: any, roster: any, feature
 			newCrew.skills[skill] = crew[skill].min + crew[skill].max;
 		}
 
-		newCrew.skills[currentGauntlet.contest_data.featured_skill] = newCrew.skills[currentGauntlet.contest_data.featured_skill] * featuredSkillBonus;
+		newCrew.skills[currentGauntlet.contest_data.featured_skill] =
+			newCrew.skills[currentGauntlet.contest_data.featured_skill] * featuredSkillBonus;
 
 		currentGauntlet.contest_data.traits.forEach((trait: any) => {
-			if (crew.rawTraits.includes(trait))
-				newCrew.crit += currentGauntlet.contest_data.crit_chance_per_trait;
+			if (crew.rawTraits.includes(trait)) newCrew.crit += currentGauntlet.contest_data.crit_chance_per_trait;
 		});
 
 		for (let skill in CONFIG.SKILLS) {
-			newCrew.skills[skill] = newCrew.skills[skill] * (100 + newCrew.crit / critBonusDivider) / 100;
+			newCrew.skills[skill] = (newCrew.skills[skill] * (100 + newCrew.crit / critBonusDivider)) / 100;
 		}
 
 		gauntletCrew.push(newCrew);
@@ -359,7 +371,7 @@ export function gauntletCrewSelection(currentGauntlet: any, roster: any, feature
 
 		// Get the first few in the final score sheet
 		for (let i = 0; i < preSortCount; i++) {
-			sortedCrew.push({ 'id': gauntletCrew[i].id, 'name': gauntletCrew[i].name, 'score': getScore(gauntletCrew[i], skill) });
+			sortedCrew.push({ id: gauntletCrew[i].id, name: gauntletCrew[i].name, score: getScore(gauntletCrew[i], skill) });
 		}
 	}
 
@@ -372,8 +384,7 @@ export function gauntletCrewSelection(currentGauntlet: any, roster: any, feature
 	sortedCrew = sortedCrew.filter((item: any) => {
 		if (seen.has(item.id)) {
 			return false;
-		}
-		else {
+		} else {
 			seen.add(item.id);
 			return true;
 		}
@@ -382,7 +393,7 @@ export function gauntletCrewSelection(currentGauntlet: any, roster: any, feature
 	// Get the first 5
 	sortedCrew = sortedCrew.slice(0, 5);
 
-	result.recommendations = sortedCrew.map((crew) => crew.id);
+	result.recommendations = sortedCrew.map(crew => crew.id);
 
 	return result;
 }
