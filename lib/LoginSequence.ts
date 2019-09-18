@@ -231,8 +231,8 @@ export async function loginSequence(onProgress: (description: string) => void, l
 
     onProgress('Loading crew cache...');
 
-    let allcrew = await STTApi.networkHelper.get(STTApi.serverAddress + 'allcrew.json', undefined);
-    STTApi.allcrew = formatAllCrew(allcrew);
+    //let allcrew = '{}'.json; //await STTApi.networkHelper.get(STTApi.serverAddress + 'allcrew.json', undefined);
+    //STTApi.allcrew = formatAllCrew(allcrew);
 
     if (!STTApi.inWebMode) {
         onProgress('Loading equipment...');
