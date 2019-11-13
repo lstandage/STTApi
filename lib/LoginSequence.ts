@@ -256,7 +256,6 @@ export async function loginSequence(onProgress: (description: string) => void, l
             }).catch((error: any) => { /*console.warn(error);*/ }));
         } else {
             // Image is already cached
-
             current++;
             // If we leave this in, stupid React will re-render everything, even though we're in a tight synchronous loop and no one gets to see the updated value anyway
             //onProgress('Caching crew images... (' + current++ + '/' + total + ')');

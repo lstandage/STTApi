@@ -53,7 +53,8 @@ export class STTApiClass {
 	public inWebMode: boolean;
 	public allcrew!: any[];
 
-	public serverAddress: string = 'https://lstandage.com/';
+	// TODO: make this configurable, if someone wants to host the web app themselves
+	public serverAddress: string = 'https://127.0.0.1:9222/';
 
 	constructor() {
 		this.refreshEverything(true);
